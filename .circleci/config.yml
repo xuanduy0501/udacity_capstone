@@ -1,0 +1,142 @@
+version: 2.1
+orbs:
+  aws-eks: circleci/aws-eks@2.2.0
+  kubernetes: circleci/kubernetes@1.2.0
+jobs:
+  test-lint:
+    docker:
+      - image: circleci/python:3.6.7-stretch
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "requirements.txt" }}
+            - v1-dependencies-
+      - run:
+          name: install dependencies
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install --no-cache-dir -r requirements.txt
+            curl -sL -o hadolint "https://github.com/hadolint/hadolint/releases/latest/download/hadolint-$(uname -s)-$(uname -m)"
+            sudo install hadolint /usr/local/bin/
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-dependencies-{{ checksum "requirements.txt" }}
+
+      - run:
+          name: Run lint
+          command: |
+            . venv/bin/activate
+            make lint
+
+  push-to-docker:
+    docker:
+      - image: circleci/golang:1.15
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build docker image
+          command: |
+            docker build --tag=uda-final .
+            docker image ls
+      - run:
+          name: Upload image to dockerhub
+          command: |
+            DOCKER_PATH=dienpp/uda-final
+            echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin
+            docker tag uda-final $DOCKER_PATH
+            docker push $DOCKER_PATH
+
+  deploy-infrastructure:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: yum install -y tar gzip
+      - run:
+          name: Deploy EKS network
+          command: |
+            aws cloudformation deploy \
+              --template-file .circleci/files/network.yml \
+              --tags project=uda-capstone \
+              --stack-name "capstone-eks-network" \
+              --region ${AWS_DEFAULT_REGION}
+      - run:
+          name: Deploy EKS Cluster
+          no_output_timeout: 20m
+          command: |
+            aws cloudformation deploy \
+              --template-file .circleci/files/eks.yml \
+              --tags project=uda-capstone \
+              --stack-name "capstone-eks-cluster" \
+              --region ${AWS_DEFAULT_REGION} \
+              --capabilities CAPABILITY_NAMED_IAM
+      - run:
+          name: Deploy EKS node group
+          no_output_timeout: 20m
+          command: |
+            aws cloudformation deploy \
+              --template-file .circleci/files/node-group.yml \
+              --tags project=uda-capstone \
+              --stack-name "capstone-eks-node-group" \
+              --region ${AWS_DEFAULT_REGION} \
+              --capabilities CAPABILITY_NAMED_IAM
+
+  deploy-docker:
+    docker:
+      - image: cimg/python:3.11.4
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt install -y tar gzip curl
+      - kubernetes/install-kubectl
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: "EKSCLUSTER"
+          aws-region: "us-east-1"
+          install-kubectl: true
+      - kubernetes/create-or-update-resource:
+          resource-file-path: .circleci/kubernetes/deploy.yml
+          resource-name: deployment/uda-final
+          get-rollout-status: true
+      - run:
+          name: Show log
+          command: |
+            kubectl get nodes
+            kubectl get deployment
+            kubectl get pod -o wide
+            kubectl get services
+            kubectl describe svc uda-final
+      - run:
+          name: Cleaning up
+          command: docker system prune
+
+workflows:
+  default:
+    jobs:
+      - test-lint
+      - push-to-docker:
+          requires:
+            - test-lint
+          filters:
+            branches:
+              only:
+                - master
+      - deploy-infrastructure:
+          filters:
+            branches:
+              only:
+                - master
+      - deploy-docker:
+          requires:
+            - deploy-infrastructure
+            - push-to-docker

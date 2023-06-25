@@ -1,0 +1,86 @@
+Description: Create node group
+
+Parameters:
+  EnvironmentName:
+    Description: The enviroment name
+    Type: String
+    Default: capstone
+
+Resources:
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref InstanceRole
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  EKSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EKS Security Group
+      Tags:
+        - Key: !Sub
+            - "kubernetes.io/cluster/${EksId}"
+            - EksId:
+                Fn::ImportValue: !Sub "${EnvironmentName}-EKS"
+          Value: "owned"
+      VpcId:
+        Fn::ImportValue: capstone-VPC
+
+  EKSSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EKSSecurityGroup
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref EKSSecurityGroup
+      Tags:
+        - Key: !Sub
+            - "kubernetes.io/cluster/${EksId}"
+            - EksId:
+                Fn::ImportValue: !Sub "${EnvironmentName}-EKS"
+          Value: "owned"
+
+  EKSNodeGroup:
+    Type: "AWS::EKS::Nodegroup"
+    Properties:
+      ClusterName: EKSCLUSTER
+      NodeRole: !GetAtt InstanceRole.Arn
+      ScalingConfig:
+        MinSize: 2
+        DesiredSize: 4
+        MaxSize: 6
+      Subnets:
+        - Fn::ImportValue: capstone-PUBSUBNET1
+        - Fn::ImportValue: capstone-PUBSUBNET2
+
+Outputs:
+  InstanceRole:
+    Description: Instance role
+    Value: !GetAtt InstanceRole.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-IR
+  EKSSecurityGroup:
+    Description: EKS Security Group
+    Value: !Ref EKSSecurityGroup
+    Export:
+      Name: !Sub ${EnvironmentName}-NSG
