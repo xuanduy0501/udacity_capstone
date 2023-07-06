@@ -173,7 +173,5 @@ workflows:
             - deploy-eks-cluster    
       - deploy-to-eks:
           requires:
-            - deploy-eks-network
-            - deploy-eks-cluster
             - deploy-eks-node-group
             - push-to-docker-hub
