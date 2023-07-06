@@ -162,15 +162,15 @@ workflows:
             branches:
               only:
                 - master
-              requires:
-                - deploy-eks-network
+          requires:
+            - deploy-eks-network    
       - deploy-eks-node-group:
           filters:
             branches:
               only:
                 - master
-              requires:
-                - deploy-eks-cluster
+          requires:
+            - deploy-eks-cluster    
       - deploy-to-eks:
           requires:
             - deploy-eks-network
