@@ -54,7 +54,7 @@ jobs:
             docker tag uda-cs $DOCKER_PATH
             docker push $DOCKER_PATH
 
-  deploy-infrastructure:
+  deploy-eks-network:
     docker:
       - image: amazon/aws-cli
     steps:
@@ -70,6 +70,15 @@ jobs:
               --tags project=uda-capstone \
               --stack-name "deploy-eks-network" \
               --region ${AWS_DEFAULT_REGION}
+  
+  deploy-eks-cluster:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: yum install tar gzip -y
       - run:
           name: Deploy EKS Cluster
           no_output_timeout: 20m
@@ -80,6 +89,15 @@ jobs:
               --stack-name "deploy-cluster" \
               --region ${AWS_DEFAULT_REGION} \
               --capabilities CAPABILITY_NAMED_IAM
+
+  deploy-eks-node-group:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies
+          command: yum install tar gzip -y
       - run:
           name: Deploy EKS node group
           no_output_timeout: 20m
@@ -90,8 +108,8 @@ jobs:
               --stack-name "deploy-node-group" \
               --region ${AWS_DEFAULT_REGION} \
               --capabilities CAPABILITY_NAMED_IAM
-
-  deploy-docker:
+  
+  deploy-to-eks:
     docker:
       - image: cimg/python:3.11.4
     steps:
@@ -133,12 +151,24 @@ workflows:
             branches:
               only:
                 - master
-      - deploy-infrastructure:
+      - deploy-eks-network:
           filters:
             branches:
               only:
                 - master
-      - deploy-docker:
+      - deploy-eks-cluster:
+          filters:
+            branches:
+              only:
+                - master
+      - deploy-eks-node-group:
+          filters:
+            branches:
+              only:
+                - master
+      - deploy-to-eks:
           requires:
-            - deploy-infrastructure
+            - deploy-eks-network
+            - deploy-eks-cluster
+            - deploy-eks-node-group
             - push-to-docker-hub
