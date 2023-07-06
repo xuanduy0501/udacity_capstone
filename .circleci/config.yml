@@ -130,13 +130,22 @@ jobs:
           resource-name: deployment/uda-duyblx-cs
           get-rollout-status: true
       - run:
-          name: Show log of node, pod,...
+          name: get nodes
           command: |
             kubectl get nodes
+      - run:
+          name: get deployment
+          command: |
             kubectl get deployment
+      - run:
+          name: get pods
+          command: |
             kubectl get pod -o wide
+      - run:
+          name: get services
+          command: |
             kubectl get services
-            kubectl describe svc uda-duyblx-cs
+      
       - run:
           name: Cleaning up
           command: docker system prune
