@@ -108,7 +108,7 @@ jobs:
           install-kubectl: true
       - kubernetes/create-or-update-resource:
           resource-file-path: .circleci/kubernetes/deploy.yml
-          resource-name: deployment/uda-final
+          resource-name: deployment/uda-duyblx-cs
           get-rollout-status: true
       - run:
           name: Show log of node, pod,...
@@ -117,7 +117,7 @@ jobs:
             kubectl get deployment
             kubectl get pod -o wide
             kubectl get services
-            kubectl describe svc uda-final
+            kubectl describe svc uda-duyblx-cs
       - run:
           name: Cleaning up
           command: docker system prune

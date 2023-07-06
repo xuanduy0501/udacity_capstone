@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: uda-final
+  name: uda-duyblx-cs
   labels:
-    app: uda-final
+    app: uda-duyblx-cs
 spec:
   # progressDeadlineSeconds: 3600
   replicas: 3
   selector:
     matchLabels:
-      app: uda-final
+      app: uda-duyblx-cs
   # strategy:
   #   rollingUpdate:
   #     maxSurge: 25%
@@ -18,12 +18,12 @@ spec:
   template:
     metadata:
       labels:
-        app: uda-final
+        app: uda-duyblx-cs
     spec:
       containers:
         - image: duy051995/uda-capstone:latest
           imagePullPolicy: Always
-          name: uda-final
+          name: uda-duyblx-cs
           ports:
             - containerPort: 80
 
@@ -31,13 +31,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: uda-final
+  name: uda-duyblx-cs
   labels:
-    app: uda-final
+    app: uda-duyblx-cs
 spec:
   type: LoadBalancer
   selector:
-    app: uda-final
+    app: uda-duyblx-cs
   ports:
     - port: 80
       targetPort: 80
