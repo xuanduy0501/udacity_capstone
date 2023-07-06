@@ -14,25 +14,27 @@ jobs:
             - v1-dependencies-{{ checksum "requirements.txt" }}
             - v1-dependencies-
       - run:
-          name: install dependencies
+          name: Install Dependencies
           command: |
             python3 -m venv venv
             . venv/bin/activate
+            pwd
             pip install --no-cache-dir -r requirements.txt
             curl -sL -o hadolint "https://github.com/hadolint/hadolint/releases/latest/download/hadolint-$(uname -s)-$(uname -m)"
             sudo install hadolint /usr/local/bin/
+            ls
       - save_cache:
           paths:
             - ./venv
           key: v1-dependencies-{{ checksum "requirements.txt" }}
 
       - run:
-          name: Run lint
+          name: Run Lint
           command: |
             . venv/bin/activate
             make lint
 
-  push-to-docker:
+  push-to-docker-hub:
     docker:
       - image: circleci/golang:1.15
     working_directory: ~/repo
@@ -42,14 +44,14 @@ jobs:
       - run:
           name: Build docker image
           command: |
-            docker build --tag=uda-final .
-            docker image ls
+            docker build --tag=uda-cs .
+            docker image 
       - run:
           name: Upload image to dockerhub
           command: |
-            DOCKER_PATH=dienpp/uda-final
+            DOCKER_PATH=udaduyblx/uda-capstone
             echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin
-            docker tag uda-final $DOCKER_PATH
+            docker tag uda-cs $DOCKER_PATH
             docker push $DOCKER_PATH
 
   deploy-infrastructure:
@@ -58,15 +60,15 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install dependencies
-          command: yum install -y tar gzip
+          name: Install Dependencies
+          command: yum install tar gzip -y
       - run:
           name: Deploy EKS network
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/network.yml \
               --tags project=uda-capstone \
-              --stack-name "capstone-eks-network" \
+              --stack-name "deploy-eks-network" \
               --region ${AWS_DEFAULT_REGION}
       - run:
           name: Deploy EKS Cluster
@@ -75,7 +77,7 @@ jobs:
             aws cloudformation deploy \
               --template-file .circleci/files/eks.yml \
               --tags project=uda-capstone \
-              --stack-name "capstone-eks-cluster" \
+              --stack-name "deploy-cluster" \
               --region ${AWS_DEFAULT_REGION} \
               --capabilities CAPABILITY_NAMED_IAM
       - run:
@@ -85,7 +87,7 @@ jobs:
             aws cloudformation deploy \
               --template-file .circleci/files/node-group.yml \
               --tags project=uda-capstone \
-              --stack-name "capstone-eks-node-group" \
+              --stack-name "deploy-node-group" \
               --region ${AWS_DEFAULT_REGION} \
               --capabilities CAPABILITY_NAMED_IAM
 
@@ -109,7 +111,7 @@ jobs:
           resource-name: deployment/uda-final
           get-rollout-status: true
       - run:
-          name: Show log
+          name: Show log of node, pod,...
           command: |
             kubectl get nodes
             kubectl get deployment
@@ -124,7 +126,7 @@ workflows:
   default:
     jobs:
       - test-lint
-      - push-to-docker:
+      - push-to-docker-hub:
           requires:
             - test-lint
           filters:
@@ -139,4 +141,4 @@ workflows:
       - deploy-docker:
           requires:
             - deploy-infrastructure
-            - push-to-docker
+            - push-to-docker-hub
